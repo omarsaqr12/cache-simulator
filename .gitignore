@@ -1,0 +1,58 @@
+# Compiled executables
+*.exe
+*.out
+cache_simulator
+cache_logic
+
+# Object files
+*.o
+*.obj
+
+# Build directory
+build/
+
+# IDE files
+.vscode/
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Log files
+*.log
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Editor backup files
+*.bak
+*.swp
+*.swo
