@@ -1,70 +1,30 @@
-# Cache Simulator Makefile
-# Compiler and flags
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -Iinclude
-LDFLAGS = 
+CXX ?= g++
+CXXFLAGS ?= -std=c++17 -Wall -Wextra -Wpedantic -O2
 
-# Directories
-SRC_DIR = src
-INCLUDE_DIR = include
-BUILD_DIR = build
-TEST_DATA_DIR = test_data
+.PHONY: all clean test gui install-deps
+all: cache_simulator
 
-# Source files
-SOURCES = $(SRC_DIR)/main.cpp
-ALT_SOURCES = $(SRC_DIR)/cache_logic.cpp
+cache_simulator: src/main.cpp include/cache.h
+	$(CXX) $(CXXFLAGS) -o $@ src/main.cpp
 
-# Executable names
-TARGET = cache_simulator
-ALT_TARGET = cache_logic
+# Compatibility executable, using the same validated parser and cache model.
+cache_logic: src/cache_logic.cpp src/main.cpp include/cache.h
+	$(CXX) $(CXXFLAGS) -o $@ src/cache_logic.cpp
 
-# Default target
-all: $(TARGET) $(ALT_TARGET)
+build/test_cache: tests/test_cache.cpp include/cache.h
+	mkdir -p build
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_cache.cpp
 
-# Create build directory
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+test: cache_simulator build/test_cache
+	./build/test_cache
+	python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-# Main executable
-$(TARGET): $(SOURCES) $(INCLUDE_DIR)/cache.h | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $(SOURCES)
-
-# Alternative executable (cache logic)
-$(ALT_TARGET): $(ALT_SOURCES) $(INCLUDE_DIR)/cache.h | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $(ALT_SOURCES)
-
-# Clean build artifacts
-clean:
-	rm -f $(TARGET) $(ALT_TARGET) *.exe
-	rm -rf $(BUILD_DIR)
-
-# Install dependencies for GUI (requires Python)
 install-deps:
-	pip install ttkbootstrap
+	python3 -m pip install -r requirements.txt
 
-# Run tests
-test: $(TARGET)
-	@echo "Running cache simulator with test data..."
-	@for test_file in $(TEST_DATA_DIR)/*.txt; do \
-		echo "Testing with $$test_file:"; \
-		echo -e "4096\n4096\n64\n2\n$$test_file" | ./$(TARGET); \
-		echo ""; \
-	done
+gui: cache_simulator
+	python3 src/gui.py
 
-# Run GUI
-gui:
-	python $(SRC_DIR)/gui.py
-
-# Help
-help:
-	@echo "Available targets:"
-	@echo "  all          - Build both executables"
-	@echo "  $(TARGET)    - Build main cache simulator"
-	@echo "  $(ALT_TARGET) - Build alternative cache logic"
-	@echo "  clean        - Remove build artifacts"
-	@echo "  install-deps - Install Python GUI dependencies"
-	@echo "  test         - Run tests with sample data"
-	@echo "  gui          - Launch GUI interface"
-	@echo "  help         - Show this help message"
-
-.PHONY: all clean install-deps test gui help
+clean:
+	rm -f cache_simulator cache_logic cache_simulator.exe cache_logic.exe
+	rm -rf build
