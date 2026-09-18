@@ -1,131 +1,98 @@
 #ifndef CACHE_H
 #define CACHE_H
 
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <iomanip>
 #include <bitset>
+#include <cstdint>
+#include <iomanip>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
 
-using namespace std;
-
-struct Line
-{
-    int identifier;
-    bool isModified;
-    bool isActive;
-};
-
-class Cache
-{
-private:
-    unsigned int totalCacheSize;
-    unsigned int blockSize;
-    unsigned int numBlocks;
-    unsigned int cyclesPerAccess;
-    unsigned int timeToMemory;
-    unsigned int totalRequests;
-    unsigned int successfulHits;
-    unsigned int unsuccessfulHits;
-    unsigned int idxBits;
-    unsigned int offsetBits;
-    unsigned int tagBitCount;
-    unsigned int totalCycles;
-    vector<Line> storage;
-
-    unsigned int calculateIndex(unsigned int addr);
-    unsigned int extractTag(unsigned int addr);
-
+// A direct-mapped, read-only cache model. Misses incur a fixed 100-cycle
+// memory penalty in addition to the configurable cache-access latency.
+class Cache {
 public:
-    Cache(unsigned int cacheSize, unsigned int lineSize, unsigned int cacheAccessTime);
-    void request(unsigned int addr);
-    void displayStats();
-    float computeHitRate();
-    float computeMissRate();
-    float computeAMAT();
-};
+    Cache(std::uint32_t cacheSize, std::uint32_t lineSize,
+          std::uint32_t cacheAccessTime)
+        : totalCacheSize(cacheSize), blockSize(lineSize),
+          cyclesPerAccess(cacheAccessTime) {
+        if (!isPowerOfTwo(cacheSize) || !isPowerOfTwo(lineSize) ||
+            lineSize > cacheSize || cacheAccessTime < 1 ||
+            cacheAccessTime > 10) {
+            throw std::invalid_argument(
+                "Cache and block sizes must be nonzero powers of two, block <= cache; latency must be 1..10");
+        }
+        numBlocks = cacheSize / lineSize;
+        while ((std::uint64_t{1} << idxBits) < numBlocks) ++idxBits;
+        while ((std::uint64_t{1} << offsetBits) < lineSize) ++offsetBits;
+        storage.resize(numBlocks);
+    }
 
-Cache::Cache(unsigned int cacheSize, unsigned int lineSize, unsigned int cacheAccessTime)
-    : totalCacheSize(cacheSize), blockSize(lineSize), cyclesPerAccess(cacheAccessTime),
-      totalRequests(0), successfulHits(0), unsuccessfulHits(0)
-{
-    timeToMemory = 100;                           // Set memory latency to 100 cycles
-    numBlocks = cacheSize / lineSize;             // Determine block count
-    idxBits = (unsigned int)log2(numBlocks);      // Derive index bits
-    offsetBits = (unsigned int)log2(lineSize);    // Derive offset bits
-    tagBitCount = 32 - idxBits - offsetBits;      // Adjust for 32-bit address
-    storage.resize(numBlocks, {0, false, false}); // Initialize cache
-}
-void Cache::displayStats()
-{
-    cout << "Cache Status Report:\n";
-    for (unsigned int i = 0; i < numBlocks; i++)
-    {
-        if (storage[i].isActive)
-        {
-            unsigned int tagValue = static_cast<unsigned int>(storage[i].identifier);
-            string binaryRepresentation = bitset<32>(tagValue).to_string();
-            binaryRepresentation = binaryRepresentation.substr(32 - tagBitCount);
-            cout << "Block " << i << ": Active = " << storage[i].isActive
-                 << ", Tag = " << binaryRepresentation << "\n";
+    void request(std::uint32_t address) {
+        const std::uint32_t index = (address >> offsetBits) & (numBlocks - 1);
+        const unsigned shift = idxBits + offsetBits;
+        const std::uint32_t tag = shift >= 32 ? 0 : (address >> shift);
+        ++totalRequests;
+        Line &line = storage[index];
+        if (line.valid && line.tag == tag) {
+            ++successfulHits;
+            totalCycles += cyclesPerAccess;
+        } else {
+            ++unsuccessfulHits;
+            line = {tag, true};
+            totalCycles += cyclesPerAccess + memoryLatency;
         }
     }
-    cout << "Cache Details:\n";
-    cout << "Cache Size: " << totalCacheSize << " bytes\n";
-    cout << "Block Size: " << blockSize << " bytes\n";
-    cout << "Total Blocks: " << numBlocks << "\n";
-    cout << "Access Time per Block: " << cyclesPerAccess << " cycles\n";
-    cout << "Memory Latency: " << timeToMemory << " cycles\n";
-    cout << "Total Requests: " << totalRequests << "\n";
-    cout << "Successful Hits: " << successfulHits << "\n";
-    cout << "Misses: " << unsuccessfulHits << "\n";
-    cout << "Hit Rate: " << fixed << setprecision(2) << computeHitRate() << "\n";
-    cout << "Miss Rate: " << fixed << setprecision(2) << computeMissRate() << "\n";
-    cout << "Average Memory Access Time: " << fixed << setprecision(2) << computeAMAT() << " cycles\n";
-}
-unsigned int Cache::calculateIndex(unsigned int addr)
-{
-    return (addr >> offsetBits) & (numBlocks - 1);
-}
 
-unsigned int Cache::extractTag(unsigned int addr)
-{
-    return addr >> (idxBits + offsetBits);
-}
-
-void Cache::request(unsigned int addr)
-{
-    totalRequests++;
-    unsigned int idx = calculateIndex(addr);
-    unsigned int tagValue = extractTag(addr);
-
-    if (storage[idx].isActive && static_cast<unsigned int>(storage[idx].identifier) == tagValue)
-    {
-        successfulHits++;
-        totalCycles += cyclesPerAccess;
+    double computeHitRate() const {
+        return totalRequests ? static_cast<double>(successfulHits) / totalRequests : 0.0;
     }
-    else
-    {
-        unsuccessfulHits++;
-        storage[idx].isActive = true;
-        storage[idx].identifier = static_cast<int>(tagValue);
-        totalCycles += (timeToMemory + cyclesPerAccess);
+    double computeMissRate() const {
+        return totalRequests ? static_cast<double>(unsuccessfulHits) / totalRequests : 0.0;
     }
-}
+    double computeAMAT() const {
+        return totalRequests ? static_cast<double>(totalCycles) / totalRequests : 0.0;
+    }
+    std::uint64_t hits() const { return successfulHits; }
+    std::uint64_t misses() const { return unsuccessfulHits; }
+    std::uint64_t requests() const { return totalRequests; }
 
-float Cache::computeHitRate()
-{
-    return (float)successfulHits / totalRequests;
-}
+    void displayStats() const {
+        std::cout << "Cache Status Report:\n";
+        const unsigned tagBits = 32 - idxBits - offsetBits;
+        for (std::uint32_t i = 0; i < numBlocks; ++i) {
+            if (storage[i].valid) {
+                const auto bits = std::bitset<32>(storage[i].tag).to_string();
+                std::cout << "Block " << i << ": Active = 1, Tag = "
+                          << bits.substr(32 - tagBits) << '\n';
+            }
+        }
+        std::cout << "Cache Details:\n"
+                  << "Cache Size: " << totalCacheSize << " bytes\n"
+                  << "Block Size: " << blockSize << " bytes\n"
+                  << "Total Blocks: " << numBlocks << '\n'
+                  << "Access Time per Block: " << cyclesPerAccess << " cycles\n"
+                  << "Memory Latency: " << memoryLatency << " cycles\n"
+                  << "Total Requests: " << totalRequests << '\n'
+                  << "Successful Hits: " << successfulHits << '\n'
+                  << "Misses: " << unsuccessfulHits << '\n'
+                  << std::fixed << std::setprecision(2)
+                  << "Hit Rate: " << (100 * computeHitRate()) << "%\n"
+                  << "Miss Rate: " << (100 * computeMissRate()) << "%\n"
+                  << "Average Memory Access Time: " << computeAMAT() << " cycles\n";
+    }
 
-float Cache::computeMissRate()
-{
-    return (float)unsuccessfulHits / totalRequests;
-}
+private:
+    struct Line { std::uint32_t tag = 0; bool valid = false; };
+    static bool isPowerOfTwo(std::uint32_t value) {
+        return value != 0 && (value & (value - 1)) == 0;
+    }
+    static constexpr std::uint32_t memoryLatency = 100;
+    std::uint32_t totalCacheSize, blockSize, cyclesPerAccess;
+    std::uint32_t numBlocks = 0, idxBits = 0, offsetBits = 0;
+    std::uint64_t totalRequests = 0, successfulHits = 0;
+    std::uint64_t unsuccessfulHits = 0, totalCycles = 0;
+    std::vector<Line> storage;
+};
 
-float Cache::computeAMAT()
-{
-    return (float)totalCycles / totalRequests;
-}
-
-#endif // CACHE_H
+#endif  // CACHE_H

@@ -1,0 +1,13 @@
+name: Cache simulator tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run known-answer tests
+        run: make test
+      - name: Build compatibility entry point
+        run: make cache_logic
