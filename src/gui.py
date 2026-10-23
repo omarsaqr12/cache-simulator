@@ -38,7 +38,7 @@ class CacheSimulatorGUI:
             "Cache Access Time (cycles):",
             "Access Sequence File:",
         ]
-        default_values = ["4096", "4096", "12", "5", ""]
+        default_values = ["4096", "4096", "64", "5", ""]
         self.entries = {}
 
         for idx, (label_text, default) in enumerate(zip(labels, default_values)):
