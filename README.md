@@ -18,7 +18,7 @@ make test
 
 The prompt order is instruction-cache size, data-cache size, block size (all in bytes), cache-access latency (cycles), and trace filename. Sizes must be **nonzero powers of two**; block size must fit both caches; latency must be 1–10 cycles. For Windows, use a C++17 compiler to build `src/main.cpp` and launch the resulting executable. The provided Makefile is intended for POSIX shells.
 
-For the optional GUI, install Python with Tk support and run `make install-deps && make gui`. The GUI is a wrapper around the executable, **not** a second simulation engine. GUI runtime behavior has not been exercised as part of this review; its existing default block size of 12 is invalid, so change it to a power of two (for example 64) before running.
+For the optional GUI, install Python with Tk support and run `make install-deps && make gui`. The GUI is a wrapper around the executable, **not** a second simulation engine. It now defaults to a valid 64-byte cache line. The backend accepts the documented default configuration; interactive GUI behavior requires a graphical desktop and has not been exercised in the current review.
 
 ## Trace format
 
